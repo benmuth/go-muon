@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/benmuth/go-muon"
+	"github.com/benmuth/go-muon/src/muon"
 )
 
 func main() {
