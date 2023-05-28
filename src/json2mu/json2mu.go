@@ -28,13 +28,13 @@ func main() {
 
 	fmt.Println("Generating MuON")
 
-	of, err := os.OpenFile(ofn, os.O_TRUNC|os.O_WRONLY, 0755)
+	of, err := os.Create(ofn)
 	if err != nil {
 		panic(err) // TODO: err handling
 	}
 	defer of.Close()
 
-	m := muon.NewMuWriter(f)
+	m := muon.NewMuWriter(of)
 	m.TagMuon()
 	if len(t) > 128 {
 		tRev := make([]string, len(t))
