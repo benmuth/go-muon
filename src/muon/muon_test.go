@@ -2,14 +2,16 @@ package muon
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestAdd(t *testing.T) {
-	db := New()
+	db := NewDictBuilder()
 
 	val1 := "hello"
 
@@ -17,17 +19,17 @@ func TestAdd(t *testing.T) {
 
 	val3 := map[string]string{"marco": "polo"}
 
-	db.add(val1)
+	db.Add(val1)
 
-	db.add(val2)
+	db.Add(val2)
 
-	db.add(val3)
+	db.Add(val3)
 
-	fmt.Println(db.count)
+	fmt.Println("dictbuilder", db.count)
 }
 
 func TestAddStr(t *testing.T) {
-	db := New()
+	db := NewDictBuilder()
 
 	type test struct {
 		str string
@@ -48,7 +50,7 @@ func TestAddStr(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		db.add(test.str)
+		db.Add(test.str)
 		got := db.count[test.str]
 
 		if got != test.want {
@@ -135,3 +137,23 @@ func TestUleb128Read(t *testing.T) {
 // 		{"read zero", byteReader{0}, 0},
 // 	}
 // }
+
+// type jsonData struct {
+// 	X map[string]any `json:"-"`
+// }
+
+type jsonData map[string]any
+
+func TestJSON(t *testing.T) {
+	b, err := os.ReadFile("../json2mu/simple.json")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("json: %s\n", b)
+	x := &jsonData{}
+	json.Unmarshal(b, x)
+	// fmt.Println(x)
+	for k, v := range *x {
+		fmt.Printf("key: %s, val (%T): %+v\n", k, v, v)
+	}
+}

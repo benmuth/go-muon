@@ -8,22 +8,29 @@ import (
 	"github.com/benmuth/go-muon/src/muon"
 )
 
+type jsonData map[string]any
+
 func main() {
 	args := os.Args
 	ifn, ofn := args[1], args[2]
 
-	f, err := os.Open(ifn)
+	b, err := os.ReadFile(ifn)
 	if err != nil {
 		panic(err) // TODO: err handling
 	}
-	defer f.Close()
-	dec := json.NewDecoder(f)
+
+	// dec := json.NewDecoder(f)
+	data := make(jsonData)
+
+	if err := json.Unmarshal(b, data); err != nil {
+		panic(err) // TODO: err handling
+	}
 
 	fmt.Println("Analysing JSON")
 
 	d := muon.NewDictBuilder()
 
-	d.Add(dec)
+	d.Add(data)
 	t := d.GetDict(512)
 
 	fmt.Println("Generating MuON")

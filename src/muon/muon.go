@@ -52,6 +52,11 @@ func (d *DictBuilder) Add(x any) {
 			d.AddStr(k)
 			d.Add(v)
 		}
+	case map[string]any:
+		for k, v := range x.(map[string]any) {
+			d.AddStr(k)
+			d.Add(v)
+		}
 	default:
 		fmt.Println("Idk")
 	}
