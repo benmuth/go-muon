@@ -3,7 +3,6 @@ package muon
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
 
@@ -25,7 +24,9 @@ func TestAdd(t *testing.T) {
 
 	db.Add(val3)
 
-	fmt.Println("dictbuilder", db.count)
+	if len(db.count) != 5 {
+		t.Fatalf("got: %v, want: %v", len(db.count), 5)
+	}
 }
 
 func TestAddStr(t *testing.T) {
@@ -142,18 +143,58 @@ func TestUleb128Read(t *testing.T) {
 // 	X map[string]any `json:"-"`
 // }
 
-type jsonData map[string]any
+// func TestJSON(t *testing.T) {
+// 	b, err := os.ReadFile("../json2mu/simple.json")
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	fmt.Printf("json: %s\n", b)
+// 	x := &jsonData{}
+// 	json.Unmarshal(b, x)
+// 	// fmt.Println(x)
+// 	for k, v := range *x {
+// 		fmt.Printf("key: %s, val (%T): %+v\n", k, v, v)
+// 	}
+// }
 
-func TestJSON(t *testing.T) {
+func TestDictBuilder(t *testing.T) {
 	b, err := os.ReadFile("../json2mu/simple.json")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("json: %s\n", b)
-	x := &jsonData{}
-	json.Unmarshal(b, x)
-	// fmt.Println(x)
-	for k, v := range *x {
-		fmt.Printf("key: %s, val (%T): %+v\n", k, v, v)
+
+	data := make(map[string]any)
+	json.Unmarshal(b, data)
+
+	d := NewDictBuilder()
+	d.Add(data)
+	table := d.GetDict(512)
+	if len(table) > 0 {
+		t.Fatalf("somethings in the table!")
 	}
+}
+
+func TestJSON2Mu(t *testing.T) {
+	b, err := os.ReadFile("../json2mu/simple.json")
+	if err != nil {
+		panic(err)
+	}
+
+	data := make(map[string]any)
+
+	json.Unmarshal(b, data)
+
+	out, err := os.Create("../json2mu/simple.mu")
+	if err != nil {
+		panic(err)
+	}
+
+	d := NewDictBuilder()
+	d.Add(data)
+	table := d.GetDict(512)
+
+	m := NewMuWriter(out)
+	m.TagMuon()
+	m.AddLRUDynamic(table)
+	m.Add(data)
 }

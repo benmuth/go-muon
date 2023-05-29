@@ -38,33 +38,28 @@ func (d *DictBuilder) AddStr(s string) {
 // this only covers strings right now, but should cover anything
 func (d *DictBuilder) Add(x any) {
 	switch val := x.(type) {
+	case nil:
+		return
 	case string:
 		d.AddStr(val)
 		// fmt.Println("val is string", val)
-	case []string: // NOTE: should cover slices of slices and slices of maps as well? Should cover all types of slices/arrays?
-		for _, s := range x.([]string) {
+	case []any: // NOTE: should cover slices of slices and slices of maps as well? Should cover all types of slices/arrays?
+		for _, s := range x.([]any) {
 			d.Add(s)
 		}
 		// fmt.Println("val is a slice", val)
-	case map[string]string: // should cover all types of maps?
+	case map[string]any: // should cover all types of maps?
 		// fmt.Println("val is a map", val)
-		for k, v := range x.(map[string]string) {
-			d.AddStr(k)
-			d.Add(v)
-		}
-	case map[string]any:
 		for k, v := range x.(map[string]any) {
 			d.AddStr(k)
 			d.Add(v)
 		}
-	default:
-		fmt.Println("Idk")
 	}
 }
 
 func (d *DictBuilder) GetDict(size int) []string {
 	for k, v := range d.count {
-		d.count[k] = (v - 1) * len(k)
+		d.count[k] = (v - 1) * len(k) // sets counts of 1 to 0?
 	}
 
 	res := make([]string, 0)
@@ -73,7 +68,7 @@ func (d *DictBuilder) GetDict(size int) []string {
 			res = append(res, k)
 		}
 	}
-	return res
+	return res[:size]
 }
 
 // integer encoding
