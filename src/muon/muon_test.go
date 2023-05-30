@@ -164,7 +164,7 @@ func TestDictBuilder(t *testing.T) {
 	}
 
 	data := make(map[string]any)
-	json.Unmarshal(b, data)
+	json.Unmarshal(b, &data)
 
 	d := NewDictBuilder()
 	d.Add(data)
@@ -182,16 +182,16 @@ func TestJSON2Mu(t *testing.T) {
 
 	data := make(map[string]any)
 
-	json.Unmarshal(b, data)
+	json.Unmarshal(b, &data)
+
+	d := NewDictBuilder()
+	d.Add(data)
+	table := d.GetDict(512)
 
 	out, err := os.Create("../json2mu/simple.mu")
 	if err != nil {
 		panic(err)
 	}
-
-	d := NewDictBuilder()
-	d.Add(data)
-	table := d.GetDict(512)
 
 	m := NewMuWriter(out)
 	m.TagMuon()

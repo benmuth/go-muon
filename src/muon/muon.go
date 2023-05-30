@@ -68,7 +68,10 @@ func (d *DictBuilder) GetDict(size int) []string {
 			res = append(res, k)
 		}
 	}
-	return res[:size]
+	if len(res) > size {
+		res = res[:size]
+	}
+	return res
 }
 
 // integer encoding
@@ -430,7 +433,7 @@ func (mw *muWriter) Add(value any) {
 			mw.Add(v)
 		}
 		mw.endList()
-	case map[any]any:
+	case map[string]any:
 		mw.startDict()
 		for k, v := range val {
 			mw.addStr(k)
