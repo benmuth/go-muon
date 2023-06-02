@@ -35,22 +35,19 @@ func (d *DictBuilder) AddStr(s string) {
 	// }
 }
 
-// this only covers strings right now, but should cover anything
 func (d *DictBuilder) Add(x any) {
+	fmt.Printf("val: %+v \t type: %T\n", x, x)
 	switch val := x.(type) {
 	case nil:
 		return
 	case string:
 		d.AddStr(val)
-		// fmt.Println("val is string", val)
-	case []any: // NOTE: should cover slices of slices and slices of maps as well? Should cover all types of slices/arrays?
-		for _, s := range x.([]any) {
+	case []any:
+		for _, s := range val {
 			d.Add(s)
 		}
-		// fmt.Println("val is a slice", val)
-	case map[string]any: // should cover all types of maps?
-		// fmt.Println("val is a map", val)
-		for k, v := range x.(map[string]any) {
+	case map[string]any:
+		for k, v := range val {
 			d.AddStr(k)
 			d.Add(v)
 		}

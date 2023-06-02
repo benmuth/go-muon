@@ -3,6 +3,7 @@ package muon
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -14,9 +15,9 @@ func TestAdd(t *testing.T) {
 
 	val1 := "hello"
 
-	val2 := []string{"goodbye", "world"}
+	val2 := []any{"goodbye", "world"}
 
-	val3 := map[string]string{"marco": "polo"}
+	val3 := map[string]any{"marco": "polo"}
 
 	db.Add(val1)
 
@@ -25,6 +26,7 @@ func TestAdd(t *testing.T) {
 	db.Add(val3)
 
 	if len(db.count) != 5 {
+		fmt.Printf("db: %+v\n", db.count)
 		t.Fatalf("got: %v, want: %v", len(db.count), 5)
 	}
 }

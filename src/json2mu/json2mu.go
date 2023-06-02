@@ -8,23 +8,26 @@ import (
 	"github.com/benmuth/go-muon/src/muon"
 )
 
-type jsonData map[string]any
+// type jsonData map[string]any
 
 func main() {
 	args := os.Args
 	ifn, ofn := args[1], args[2]
 
+	fmt.Println(ifn, ofn)
 	b, err := os.ReadFile(ifn)
 	if err != nil {
 		panic(err) // TODO: err handling
 	}
 
 	// dec := json.NewDecoder(f)
-	data := make(jsonData)
+	data := make(map[string]any)
 
-	if err := json.Unmarshal(b, data); err != nil {
+	if err := json.Unmarshal(b, &data); err != nil {
 		panic(err) // TODO: err handling
 	}
+
+	fmt.Printf("json: %+v\n", data)
 
 	fmt.Println("Analysing JSON")
 
@@ -49,8 +52,9 @@ func main() {
 			tRev[i] = t[j]
 		}
 		m.AddLRUList(tRev)
+		panic("wrong path!")
 	} else {
 		m.AddLRUDynamic(t)
 	}
-	m.Add(dec)
+	m.Add(data)
 }
