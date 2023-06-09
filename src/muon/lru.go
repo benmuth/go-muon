@@ -58,6 +58,6 @@ func (lru *LRU) FindIndex(element any) int {
 	return -1 // Element not found
 }
 
-func (lru *LRU) extend(arr []any) {
+// func (lru *LRU) extend(arr []any) {
 
-}
+// }

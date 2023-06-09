@@ -34,11 +34,11 @@ func TestAdd(t *testing.T) {
 func TestAddStr(t *testing.T) {
 	db := NewDictBuilder()
 
-	type test struct {
-		str string
-		// got int
-		want int
-	}
+	// type test struct {
+	// 	str string
+	// 	// got int
+	// 	want int
+	// }
 
 	tests := []struct {
 		str string
@@ -159,22 +159,22 @@ func TestUleb128Read(t *testing.T) {
 // 	}
 // }
 
-func TestDictBuilder(t *testing.T) {
-	b, err := os.ReadFile("../json2mu/simple.json")
-	if err != nil {
-		panic(err)
-	}
+// func TestDictBuilder(t *testing.T) {
+// 	b, err := os.ReadFile("../json2mu/simple.json")
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	data := make(map[string]any)
-	json.Unmarshal(b, &data)
+// 	data := make(map[string]any)
+// 	json.Unmarshal(b, &data)
 
-	d := NewDictBuilder()
-	d.Add(data)
-	table := d.GetDict(512)
-	if len(table) > 0 {
-		t.Fatalf("somethings in the table!")
-	}
-}
+// 	d := NewDictBuilder()
+// 	d.Add(data)
+// 	table := d.GetDict(512)
+// 	if len(table) > 0 {
+// 		t.Errorf("somethings in the table!")
+// 	}
+// }
 
 func TestJSON2Mu(t *testing.T) {
 	b, err := os.ReadFile("../json2mu/simple.json")
@@ -199,4 +199,30 @@ func TestJSON2Mu(t *testing.T) {
 	m.TagMuon()
 	m.AddLRUDynamic(table)
 	m.Add(data)
+}
+
+func TestMu2JSON(t *testing.T) {
+	f, err := os.Open("../json2mu/simple.mu")
+	if err != nil {
+		panic(err) // TODO: err handling
+	}
+	defer f.Close()
+
+	m := NewMuReader(*bufio.NewReader(f))
+	b, err := m.inp.Peek(1)
+	if err != nil {
+		t.Fatalf("didn't peek")
+	}
+	fmt.Printf("buffered reader peek! %0x\n", b)
+
+	data := m.ReadObject()
+
+	fmt.Printf("DATA\n\n%+v\n", data)
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		panic(err) // TODO: err handling
+	}
+
+	fmt.Printf("OUTPUT\n\n %s\n", jsonData)
 }

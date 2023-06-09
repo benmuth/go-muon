@@ -9,8 +9,6 @@ import (
 	"io"
 	"math"
 	"strings"
-
-	"errors"
 )
 
 const MuonMagic = "\x8F\xB5\x30\x31"
@@ -182,37 +180,37 @@ func sleb128read(r bufio.Reader) int {
 //     return res
 
 // NOTE: get_array_type_code is used to create an array of a certain type.
-func getArrayTypeCode(t byte) rune {
-	switch t {
-	case 0xB0:
-		return 'b'
-	case 0xB1:
-		return 'h'
-	case 0xB2:
-		return 'l'
-	case 0xB3:
-		return 'q'
+// func getArrayTypeCode(t byte) rune {
+// 	switch t {
+// 	case 0xB0:
+// 		return 'b'
+// 	case 0xB1:
+// 		return 'h'
+// 	case 0xB2:
+// 		return 'l'
+// 	case 0xB3:
+// 		return 'q'
 
-	case 0xB4:
-		return 'B'
-	case 0xB5:
-		return 'H'
-	case 0xB6:
-		return 'L'
-	case 0xB7:
-		return 'Q'
+// 	case 0xB4:
+// 		return 'B'
+// 	case 0xB5:
+// 		return 'H'
+// 	case 0xB6:
+// 		return 'L'
+// 	case 0xB7:
+// 		return 'Q'
 
-	case 0xB8:
-		panic("TypedArray: f16 not supported") //TODO: error handling
-	case 0xB9:
-		return 'f'
-	case 0xBA:
-		return 'd'
-	default:
-		err := errors.New(fmt.Sprintf("No array type for %x", t))
-		panic(err)
-	}
-}
+// 	case 0xB8:
+// 		panic("TypedArray: f16 not supported") //TODO: error handling
+// 	case 0xB9:
+// 		return 'f'
+// 	case 0xBA:
+// 		return 'd'
+// 	default:
+// 		err := errors.New(fmt.Sprintf("No array type for %x", t))
+// 		panic(err)
+// 	}
+// }
 
 func getTypedArrayMarker(val any) byte {
 	switch t := val.(type) {
@@ -239,7 +237,7 @@ func getTypedArrayMarker(val any) byte {
 	case float64:
 		return 0xBA
 	default:
-		err := errors.New(fmt.Sprintf("No encoding for array %x", t))
+		err := fmt.Errorf("no encoding for array %x", t)
 		panic(err)
 	}
 }
@@ -268,51 +266,51 @@ func (mw *muWriter) TagMuon() {
 	mw.write([]byte(MuonMagic))
 }
 
-func (mw *muWriter) addTagged(val string, size bool, count bool, pad int) {
-	ogOut := mw.out
+// func (mw *muWriter) addTagged(val string, size bool, count bool, pad int) {
+// 	ogOut := mw.out
 
-	// encode to a temporary buffer
-	mw.out = bytes.NewBufferString("")
-	mw.Add(val)
-	out, ok := mw.out.(*bytes.Buffer)
-	if !ok {
-		panic("Couldn't type assert!")
-	}
-	buf := make([]byte, len(out.Bytes()))
-	n, err := mw.out.Read(buf)
-	if err != nil {
-		panic(errors.New(fmt.Sprintf("ERROR: failed to read from buffer: %s. %v bytes read", err, n)))
-	}
-	mw.out = ogOut
+// 	// encode to a temporary buffer
+// 	mw.out = bytes.NewBufferString("")
+// 	mw.Add(val)
+// 	out, ok := mw.out.(*bytes.Buffer)
+// 	if !ok {
+// 		panic("Couldn't type assert!")
+// 	}
+// 	buf := make([]byte, len(out.Bytes()))
+// 	n, err := mw.out.Read(buf)
+// 	if err != nil {
+// 		panic(errors.New(fmt.Sprintf("ERROR: failed to read from buffer: %s. %v bytes read", err, n)))
+// 	}
+// 	mw.out = ogOut
 
-	if pad > 0 {
-		padding := make([]byte, 0)
-		for i := 0; i < pad; i++ {
-			padding = append(padding, byte(0xFF))
-		}
-		mw.write(padding)
-	}
+// 	if pad > 0 {
+// 		padding := make([]byte, 0)
+// 		for i := 0; i < pad; i++ {
+// 			padding = append(padding, byte(0xFF))
+// 		}
+// 		mw.write(padding)
+// 	}
 
-	if count {
-		b := []byte{0x8A}
-		enc := uleb128encode(len(val))
-		for _, x := range enc {
-			b = append(b, x)
-		}
+// 	if count {
+// 		b := []byte{0x8A}
+// 		enc := uleb128encode(len(val))
+// 		for _, x := range enc {
+// 			b = append(b, x)
+// 		}
 
-		mw.write(b)
-	}
+// 		mw.write(b)
+// 	}
 
-	if size {
-		b := []byte{0x8B}
-		enc := uleb128encode(len(buf))
-		for _, x := range enc {
-			b = append(b, x)
-		}
+// 	if size {
+// 		b := []byte{0x8B}
+// 		enc := uleb128encode(len(buf))
+// 		for _, x := range enc {
+// 			b = append(b, x)
+// 		}
 
-		mw.write(b)
-	}
-}
+// 		mw.write(b)
+// 	}
+// }
 
 // NOTE: table might have to be a map, which is then converted to a []string, or a [][]string to correspond to a list of tuples
 func (mw *muWriter) AddLRUDynamic(table []string) {
@@ -406,7 +404,7 @@ func (mw *muWriter) Add(value any) {
 		// TODO: handle big endian machines
 		n, err := io.WriteString(mw.out, strings.Join(val, ""))
 		if err != nil {
-			panic(errors.New(fmt.Sprintf("ERROR: failed to write to output: %s. %v bytes written", err, n)))
+			panic(fmt.Errorf("ERROR: failed to write to output: %s. %v bytes written", err, n))
 		}
 	case []byte:
 		mw.write([]byte{0x84, 0xB4})
@@ -438,13 +436,13 @@ func (mw *muWriter) Add(value any) {
 		}
 		mw.endDict()
 	}
-	return
+	// return
 }
 
 func (mw *muWriter) write(b []byte) {
 	n, err := mw.out.Write(b)
 	if err != nil {
-		panic(errors.New(fmt.Sprintf("ERROR: failed to write to buffer: %s. %v bytes written", err, n)))
+		panic(fmt.Errorf("ERROR: failed to write to buffer: %s. %v bytes written", err, n))
 	}
 }
 
@@ -488,29 +486,29 @@ func (mw *muWriter) endList()   { mw.append(0x91) }
 func (mw *muWriter) startDict() { mw.append(0x92) }
 func (mw *muWriter) endDict()   { mw.append(0x93) }
 
-func (mw *muWriter) startArray(val []any, chunked bool) {
-	code := getTypedArrayMarker(val)
-	var b byte
-	if chunked {
-		b = 0x85
-	} else {
-		b = 0x84
-	}
-	mw.write([]byte{b, code})
-	mw.addArrayChunk(val)
-}
+// func (mw *muWriter) startArray(val []any, chunked bool) {
+// 	code := getTypedArrayMarker(val)
+// 	var b byte
+// 	if chunked {
+// 		b = 0x85
+// 	} else {
+// 		b = 0x84
+// 	}
+// 	mw.write([]byte{b, code})
+// 	mw.addArrayChunk(val)
+// }
 
-func (mw *muWriter) addArrayChunk(val []any) {
-	mw.write(uleb128encode(len(val)))
-	// TODO: handle BIG_ENDIAN
-	for _, v := range val {
-		mw.write([]byte{v.(byte)})
-	}
-}
+// func (mw *muWriter) addArrayChunk(val []any) {
+// 	mw.write(uleb128encode(len(val)))
+// 	// TODO: handle BIG_ENDIAN
+// 	for _, v := range val {
+// 		mw.write([]byte{v.(byte)})
+// 	}
+// }
 
-func (mw *muWriter) endArrayChunked() {
-	mw.append(0x00)
-}
+// func (mw *muWriter) endArrayChunked() {
+// 	mw.append(0x00)
+// }
 
 //TODO: handle float16
 // func (mw *muWriter) addTypedArrayF16(val []float64) {
@@ -539,9 +537,9 @@ func (mr *muReader) peekByte() byte {
 }
 
 // NOTE: not used?
-func (mr *muReader) hasData() bool {
-	return mr.inp.Buffered() > 0
-}
+// func (mr *muReader) hasData() bool {
+// 	return mr.inp.Buffered() > 0
+// }
 
 func (mr *muReader) readString() (res string) {
 	tag := make([]byte, 1)
@@ -566,10 +564,15 @@ func (mr *muReader) readString() (res string) {
 		}
 		return string(b)
 	default:
+		err := mr.inp.UnreadByte()
+		if err != nil {
+			panic(err)
+		}
 		res, err = mr.inp.ReadString(0x00)
 		if err != nil {
 			panic(err) // TODO: err handling
 		}
+		res = res[:len(res)-1]
 		return
 	}
 }
@@ -779,7 +782,7 @@ func (mr *muReader) readList() []any {
 		panic(err) // TODO: err handling
 	}
 	for next[0] != 0x91 {
-		res = append(res, mr.readObject()...)
+		res = append(res, mr.ReadObject())
 		next, err = mr.inp.Peek(1)
 		if err != nil {
 			panic(err) // TODO: err handling
@@ -792,8 +795,8 @@ func (mr *muReader) readList() []any {
 	return res
 }
 
-func (mr *muReader) readDict() map[any]any {
-	res := make(map[any]any)
+func (mr *muReader) readDict() map[string]any {
+	res := make(map[string]any)
 	b, err := mr.inp.ReadByte()
 	if err != nil {
 		panic(err) // TODO: err handling
@@ -807,8 +810,8 @@ func (mr *muReader) readDict() map[any]any {
 		panic(err) // TODO: err handling
 	}
 	for next[0] != 0x93 {
-		key := mr.readObject()
-		val := mr.readObject()
+		key := mr.ReadObject().(string)
+		val := mr.ReadObject()
 		res[key] = val
 		next, err = mr.inp.Peek(1)
 		if err != nil {
@@ -822,14 +825,24 @@ func (mr *muReader) readDict() map[any]any {
 	return res
 }
 
-func (mr *muReader) readObject() []any {
+func (mr *muReader) ReadObject() any {
+	// size := mr.inp.Size()
+	// fmt.Printf("BUFFER SIZE: %v\n", size)
+	// fmt.Printf("bytes to read: %v\n", mr.inp.Buffered())
 	data, err := mr.inp.Peek(1)
-	if err != nil {
+	var nxt byte
+	if err == nil {
+		nxt = data[0]
+	} else if err == io.EOF {
+		fmt.Printf("NO PEEK.%s\n", err)
+	} else if err != nil {
 		panic(err) // TODO: err handling
 	}
-	nxt := data[0]
 
 	for nxt == 0xFF {
+		if _, err := mr.inp.ReadByte(); err != nil {
+			panic(err)
+		}
 		data, err = mr.inp.Peek(1)
 		if err != nil {
 			panic(err) // TODO: err handling
@@ -851,14 +864,14 @@ func (mr *muReader) readObject() []any {
 				panic(err) // TODO: err handling
 			}
 			_ = uleb128read(mr.inp)
-			return mr.readObject()
+			return mr.ReadObject()
 		case nxt == 0x8B:
 			_, err := mr.inp.ReadByte()
 			if err != nil {
 				panic(err) // TODO: err handling
 			}
 			_ = uleb128read(mr.inp)
-			return mr.readObject()
+			return mr.ReadObject()
 		case nxt == 0x8C:
 			_, err := mr.inp.ReadByte()
 			if err != nil {
@@ -870,7 +883,7 @@ func (mr *muReader) readObject() []any {
 					mr.lru.list.InsertAfter(v, mr.lru.list.Back())
 				}
 				// Read next object (LRU list is skipped)
-				return mr.readObject()
+				return mr.ReadObject()
 			} else {
 				str := mr.readString()
 				mr.lru.list.InsertAfter(str, mr.lru.list.Back())
@@ -887,32 +900,30 @@ func (mr *muReader) readObject() []any {
 			if err != nil {
 				panic(err) // TODO: err handling
 			}
-			for i, b := range MuonMagic {
-				if byte(b) != data[i] {
-					panic("not muon magic!")
-				}
+			if !bytes.Equal([]byte(MuonMagic), data) {
+				panic("not muon magic!")
 			}
-			return mr.readObject()
+			return mr.ReadObject()
 		case nxt == 0x90:
 			return mr.readList()
 		case nxt == 0x92:
-			dict := mr.readDict()
-			res := make([]any, len(dict))
-			for k, v := range dict {
-				res = append(res, dictRecord{k, v})
-			}
-			return res
+			// dict := mr.readDict()
+			// res := make([]any, len(dict))
+			// for k, v := range dict {
+			// 	res = append(res, dictRecord{k, v})
+			// }
+			return mr.readDict()
 		default:
 			panic("Unknown object")
 		}
 	}
-	return []any{}
+	return mr.readString()
 }
 
-type dictRecord struct {
-	key any
-	val any
-}
+// type dictRecord struct {
+// 	key any
+// 	val any
+// }
 
 // func dumps(data)
 
