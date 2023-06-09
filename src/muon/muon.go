@@ -3,7 +3,6 @@ package muon
 import (
 	"bufio"
 	"bytes"
-	"container/list"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -28,9 +27,7 @@ func NewDictBuilder() *DictBuilder {
 
 func (d *DictBuilder) AddStr(s string) {
 	// NOTE: why len(val) > 1 check in original code?
-	// if len(s) > 1 {
 	d.count[s]++
-	// }
 }
 
 func (d *DictBuilder) Add(x any) {
@@ -245,13 +242,8 @@ func getTypedArrayMarker(val any) byte {
 // Muon formatter and parser
 
 type muWriter struct {
-	out io.ReadWriter
-
-	// this is a deque in python
-	// lru *list.List
-	lru *LRU
-
-	// NOTE: maybe this can be a slice?
+	out          io.ReadWriter
+	lru          *LRU
 	lruDynamic   *LRU
 	detectArrays bool
 }
@@ -259,7 +251,7 @@ type muWriter struct {
 func NewMuWriter(f io.ReadWriter) *muWriter {
 	lru := NewLRU(512)
 	lruDynamic := NewLRU(512)
-	return &muWriter{f, lru, lruDynamic, true} // NOTE: should lruDynamic be a *LRU as well?
+	return &muWriter{f, lru, lruDynamic, true}
 }
 
 func (mw *muWriter) TagMuon() {
@@ -312,25 +304,19 @@ func (mw *muWriter) TagMuon() {
 // 	}
 // }
 
-// NOTE: table might have to be a map, which is then converted to a []string, or a [][]string to correspond to a list of tuples
-func (mw *muWriter) AddLRUDynamic(table []string) {
-	for _, s := range table {
-		last := mw.lruDynamic.list.Back()
-		mw.lruDynamic.list.InsertAfter(s, last)
-	}
+func (mw *muWriter) AddLRUDynamic(table []any) {
+	mw.lruDynamic.Extend(table)
 }
 
-func (mw *muWriter) AddLRUList(table []string) {
-	for _, s := range table {
-		last := mw.lruDynamic.list.Back()
-		mw.lruDynamic.list.InsertAfter(s, last)
-	}
+func (mw *muWriter) AddLRUList(table []any) {
+	mw.lru.Extend(table)
 
 	mw.write([]byte{0x8C})
 	mw.startList()
 	for _, s := range table {
-		mw.write(append([]byte(s), 0x00))
+		mw.write(append([]byte(s.(string)), 0x00))
 	}
+	mw.endList()
 }
 
 func (mw *muWriter) Add(value any) {
@@ -449,24 +435,21 @@ func (mw *muWriter) write(b []byte) {
 // Low-level API
 
 func (mw *muWriter) addStr(value any) {
-	val, ok := value.(string)
-	if !ok {
-		panic("couldn't cast val to string!")
-	}
-	// strlen := len(val)
+	val := value.(string)
 
-	i := mw.lru.FindIndex(val)
-	if i >= 0 { // TODO: use map to check membership
-		idx := mw.lru.list.Len() - i - 1
+	valIdx := mw.lru.FindIndex(val)
+	if valIdx >= 0 { // TODO: use map to check membership
+		idx := len(mw.lru.deque) - valIdx - 1
 		mw.write(append([]byte{0x81}, uleb128encode(idx)...))
 	} else {
 		if mw.lruDynamic.FindIndex(val) >= 0 {
-			mw.lru.list.InsertAfter(val, mw.lru.list.Back())
-			mw.lruDynamic.list.Remove(value.(*list.Element))
+			mw.lru.Append(val)
+			mw.lruDynamic.Remove(val)
 			mw.write([]byte{0x8C})
 		}
 
-		if strings.Contains(val, "\x00") || len(val) >= 512 {
+		buff := []byte(val)
+		if bytes.Contains(buff, []byte{0}) || len(val) >= 512 {
 			mw.write([]byte{0x82})
 			mw.write(uleb128encode(len(val)))
 			mw.write([]byte(val))
@@ -550,10 +533,7 @@ func (mr *muReader) readString() (res string) {
 	switch c := tag[0]; c {
 	case 0x81:
 		n := uleb128read(mr.inp)
-		for i, e := 0, mr.lru.list.Back(); i < n; i++ {
-			res = e.Value.(string)
-			e = e.Prev()
-		}
+		res = mr.lru.Get(-n).(string)
 		return
 	case 0x82:
 		n := uleb128read(mr.inp)
@@ -611,7 +591,6 @@ func (mr *muReader) readTypedValue() any {
 	}
 	switch t := data[0]; t {
 	case 0xB0:
-		//     res = struct.unpack('<b', self.inp.read(1))[0]
 		res, err := mr.inp.ReadByte()
 		if err != nil {
 			panic(err) // TODO: err handling
@@ -645,7 +624,6 @@ func (mr *muReader) readTypedValue() any {
 		}
 		return uint8(res)
 	case 0xB5:
-		//     res = struct.unpack('<H', self.inp.read(2))[0]
 		data := make([]byte, 2)
 		_, err := mr.inp.Read(data)
 		if err != nil {
@@ -653,7 +631,6 @@ func (mr *muReader) readTypedValue() any {
 		}
 		return binary.LittleEndian.Uint16(data)
 	case 0xB6:
-		//     res = struct.unpack('<L', self.inp.read(4))[0]
 		data := make([]byte, 4)
 		_, err := mr.inp.Read(data)
 		if err != nil {
@@ -661,7 +638,6 @@ func (mr *muReader) readTypedValue() any {
 		}
 		return binary.LittleEndian.Uint32(data)
 	case 0xB7:
-		//     res = struct.unpack('<Q', self.inp.read(8))[0]
 		data := make([]byte, 8)
 		_, err := mr.inp.Read(data)
 		if err != nil {
@@ -826,9 +802,6 @@ func (mr *muReader) readDict() map[string]any {
 }
 
 func (mr *muReader) ReadObject() any {
-	// size := mr.inp.Size()
-	// fmt.Printf("BUFFER SIZE: %v\n", size)
-	// fmt.Printf("bytes to read: %v\n", mr.inp.Buffered())
 	data, err := mr.inp.Peek(1)
 	var nxt byte
 	if err == nil {
@@ -878,19 +851,12 @@ func (mr *muReader) ReadObject() any {
 				panic(err) // TODO: err handling
 			}
 			if mr.peekByte() == 0x90 {
-				// mr.lru.extend(mr.readList())
-				for _, v := range mr.readList() {
-					mr.lru.list.InsertAfter(v, mr.lru.list.Back())
-				}
+				mr.lru.Extend(mr.readList())
 				// Read next object (LRU list is skipped)
 				return mr.ReadObject()
 			} else {
-				str := mr.readString()
-				mr.lru.list.InsertAfter(str, mr.lru.list.Back())
-				res := make([]any, len(str))
-				for i, c := range str {
-					res[i] = c
-				}
+				res := mr.readString()
+				mr.lru.Append(res)
 				return res
 			}
 		case nxt == 0x8F:
@@ -907,11 +873,6 @@ func (mr *muReader) ReadObject() any {
 		case nxt == 0x90:
 			return mr.readList()
 		case nxt == 0x92:
-			// dict := mr.readDict()
-			// res := make([]any, len(dict))
-			// for k, v := range dict {
-			// 	res = append(res, dictRecord{k, v})
-			// }
 			return mr.readDict()
 		default:
 			panic("Unknown object")
@@ -919,11 +880,6 @@ func (mr *muReader) ReadObject() any {
 	}
 	return mr.readString()
 }
-
-// type dictRecord struct {
-// 	key any
-// 	val any
-// }
 
 // func dumps(data)
 
