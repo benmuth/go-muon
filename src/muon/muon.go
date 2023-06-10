@@ -6,8 +6,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"math"
+	"math/big"
 	"strings"
+
+	"github.com/x448/float16"
 )
 
 const MuonMagic = "\x8F\xB5\x30\x31"
@@ -122,29 +126,35 @@ func sleb128encode(i int) []byte {
 	}
 }
 
-func sleb128decode(b []byte) int {
-	r := 0
-	for i, e := range b {
-		r = r + ((int(e) & 0x7f) << (i * 7))
-		if i == len(b)-1 {
-			if int(e)&0x40 != 0 {
-				r |= -(1<<(i*7) + 7)
-			}
-		}
+func sleb128decode(b []byte) *big.Int {
+	r := big.NewInt(0)
+	var i int
+	var e byte
+	for i, e = range b {
+		// r = r + ((int(e) & 0x7f) << (i * 7))
+		x := big.NewInt(int64(e & 0x7f))
+		y := x.Lsh(x, uint(i*7))
+		r.Add(r, y)
+	}
+	if int(e)&0x40 != 0 { // check if the one bit of the byte is set
+		z := big.NewInt(1)
+		z = z.Lsh(z, uint(i*7+7))
+		z.Neg(z)
+		// r |= - (1 << (i * 7) + 7
+		r = r.Or(r, z)
 	}
 	return r
 }
 
-func sleb128read(r bufio.Reader) int {
+func sleb128read(r bufio.Reader) *big.Int {
 	a := make([]byte, 0)
 	for {
-		b := []byte{}
-		_, err := r.Read(b)
+		b, err := r.ReadByte()
 		if err != nil {
 			panic(err) // TODO: error handling
 		}
-		a = append(a, b...)
-		if (b[0] & 0x80) == 0 {
+		a = append(a, b)
+		if (b & 0x80) == 0 {
 			break
 		}
 	}
@@ -508,6 +518,7 @@ type muReader struct {
 }
 
 func NewMuReader(inp bufio.Reader) *muReader {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	return &muReader{inp, NewLRU(512)} //NOTE: what should capacity of LRU be?
 }
 
@@ -645,7 +656,17 @@ func (mr *muReader) readTypedValue() any {
 		}
 		return (binary.LittleEndian.Uint64(data))
 	case 0xB8:
-		panic("Not supporting f16!") // TODO: support f16
+		log.Print("Handling f16!")
+		data := make([]byte, 2)
+		_, err := mr.inp.Read(data)
+		if err != nil {
+			panic(err)
+		}
+		data = append([]byte{0, 0}, data...)
+		f32 := math.Float32frombits(binary.LittleEndian.Uint32(data))
+		f16 := float16.Fromfloat32(f32)
+		log.Printf("float 16:%s", f16.String())
+		return f16
 	case 0xB9:
 		data := make([]byte, 4)
 		_, err := mr.inp.Read(data)
@@ -661,7 +682,8 @@ func (mr *muReader) readTypedValue() any {
 		}
 		return math.Float64frombits(binary.LittleEndian.Uint64(data))
 	case 0xBB:
-		return sleb128read(mr.inp)
+		// TODO: string
+		return sleb128read(mr.inp).String()
 	default:
 		panic("Unknown typed value")
 	}
@@ -687,7 +709,8 @@ func (mr *muReader) readTypedArray() []any {
 	// var chunk []any
 	switch t {
 	case 0xBB:
-		res := make([]byte, 0)
+		// res := make([]byte, 0)
+		res = make([]any, 0)
 		for {
 			n := uleb128read(mr.inp)
 			if n == 0 {
@@ -695,28 +718,41 @@ func (mr *muReader) readTypedArray() []any {
 			}
 
 			for i := 0; i < n; i++ {
-				val := sleb128read(mr.inp)
-				res = append(res, byte(val))
+				val := sleb128read(mr.inp).String()
+				res = append(res, val)
 			}
 			if !chunked {
-				ret := make([]any, len(res))
-				for i, v := range res {
-					ret[i] = v
-				}
-				return ret
+				return res
 			}
 		}
 	case 0xB8:
 		// TODO: support f16
-		panic("f16 not supported")
-		// for i := 0; i < n; i++ {
-		// 	data := make([]byte, 2)
-		// 	_, err := mr.inp.Read(data)
-		// 	if err != nil {
-		// 		panic(err) // TODO: err handling
-		// 	}
-		// }
+		// panic("f16 not supported")
+		log.Print("Handling f16!")
+		res = make([]any, 0)
+		for {
+			n := uleb128read(mr.inp)
+			if n == 0 {
+				break
+			}
+
+			for i := 0; i < n; i++ {
+				data := make([]byte, 2)
+				_, err := mr.inp.Read(data)
+				if err != nil {
+					panic(err)
+				}
+				// data = append(data, []byte{0, 0}...)
+				data = append([]byte{0, 0}, data...)
+				f32 := math.Float32frombits(binary.LittleEndian.Uint32(data))
+				res = append(res, float16.Fromfloat32(f32))
+			}
+			if !chunked {
+				return res
+			}
+		}
 	default:
+		res := make([]byte, 0)
 		for {
 			n := uleb128read(mr.inp)
 			if n == 0 {
@@ -789,6 +825,7 @@ func (mr *muReader) readDict() map[string]any {
 		key := mr.ReadObject().(string)
 		val := mr.ReadObject()
 		res[key] = val
+		log.Printf("key: %-5s \t val: %5v", key, val)
 		next, err = mr.inp.Peek(1)
 		if err != nil {
 			panic(err) // TODO: err handling

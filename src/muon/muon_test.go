@@ -3,6 +3,7 @@ package muon
 import (
 	"bufio"
 	"encoding/json"
+	"log"
 	"os"
 	"testing"
 
@@ -246,7 +247,16 @@ func Mu2JSON(file string) []byte {
 	}
 	defer f.Close()
 
+	// NOTE: print all bytes
+	b, err := os.ReadFile(file)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("%0 x\n", b)
+
 	m := NewMuReader(*bufio.NewReader(f))
+
+	m.inp.Reset(f)
 
 	data := m.ReadObject()
 
