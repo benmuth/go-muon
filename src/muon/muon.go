@@ -97,16 +97,17 @@ func uleb128decode(b []byte) int {
 }
 
 // TODO: change from reading 1 byte to reading 1 character
-func uleb128read(r bufio.Reader) int {
+func uleb128read(r *bufio.Reader) int {
 	a := make([]byte, 0)
 	for {
-		b := make([]byte, 1)
-		_, err := r.Read(b)
+		// b := make([]byte, 1)
+		b, err := r.ReadByte()
 		if err != nil {
 			panic(err) // TODO: Real error handling
 		}
-		a = append(a, b[0])
-		if (b[0] & 0x80) == 0 {
+		log.Printf("next char: %x", b)
+		a = append(a, b)
+		if (b & 0x80) == 0 {
 			break
 		}
 	}
@@ -146,7 +147,7 @@ func sleb128decode(b []byte) *big.Int {
 	return r
 }
 
-func sleb128read(r bufio.Reader) *big.Int {
+func sleb128read(r *bufio.Reader) *big.Int {
 	a := make([]byte, 0)
 	for {
 		b, err := r.ReadByte()
@@ -513,13 +514,13 @@ func (mw *muWriter) endDict()   { mw.append(0x93) }
 // }
 
 type muReader struct {
-	inp bufio.Reader
+	inp *bufio.Reader
 	lru *LRU
 }
 
 func NewMuReader(inp bufio.Reader) *muReader {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	return &muReader{inp, NewLRU(512)} //NOTE: what should capacity of LRU be?
+	return &muReader{&inp, NewLRU(512)} //NOTE: what should capacity of LRU be?
 }
 
 func (mr *muReader) peekByte() byte {
@@ -536,12 +537,12 @@ func (mr *muReader) peekByte() byte {
 // }
 
 func (mr *muReader) readString() (res string) {
-	tag := make([]byte, 1)
-	_, err := mr.inp.Read(tag)
+	c, err := mr.inp.ReadByte()
 	if err != nil {
 		panic(err) // TODO: err handling
 	}
-	switch c := tag[0]; c {
+	log.Printf("next char: %x", c)
+	switch c {
 	case 0x81:
 		n := uleb128read(mr.inp)
 		res = mr.lru.Get(-n).(string)
@@ -555,15 +556,21 @@ func (mr *muReader) readString() (res string) {
 		}
 		return string(b)
 	default:
-		err := mr.inp.UnreadByte()
-		if err != nil {
-			panic(err)
+		buff := make([]byte, 0)
+		for c != 0x00 {
+			buff = append(buff, c)
+			c, err = mr.inp.ReadByte()
+			if err != nil {
+				panic(err)
+			}
+			log.Printf("next char: %x", c)
 		}
-		res, err = mr.inp.ReadString(0x00)
-		if err != nil {
-			panic(err) // TODO: err handling
-		}
-		res = res[:len(res)-1]
+		// res, err = mr.inp.ReadString(0x00)
+		// if err != nil {
+		// 	panic(err) // TODO: err handling
+		// }
+		// res = res[:len(res)-1]
+		res = string(buff)
 		return
 	}
 }
@@ -662,10 +669,8 @@ func (mr *muReader) readTypedValue() any {
 		if err != nil {
 			panic(err)
 		}
-		data = append([]byte{0, 0}, data...)
-		f32 := math.Float32frombits(binary.LittleEndian.Uint32(data))
-		f16 := float16.Fromfloat32(f32)
-		log.Printf("float 16:%s", f16.String())
+		f16 := float16.Frombits(binary.LittleEndian.Uint16(data))
+		// log.Printf("float 16:%s", f16.String())
 		return f16
 	case 0xB9:
 		data := make([]byte, 4)
@@ -822,7 +827,10 @@ func (mr *muReader) readDict() map[string]any {
 		panic(err) // TODO: err handling
 	}
 	for next[0] != 0x93 {
-		key := mr.ReadObject().(string)
+		key, ok := mr.ReadObject().(string)
+		if !ok {
+			panic(err)
+		}
 		val := mr.ReadObject()
 		res[key] = val
 		log.Printf("key: %-5s \t val: %5v", key, val)

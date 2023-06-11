@@ -115,7 +115,7 @@ func TestUleb128Read(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := uleb128read(*tc.input)
+			got := uleb128read(tc.input)
 			diff := cmp.Diff(got, tc.want)
 			if diff != "" {
 				t.Fatalf(diff)
