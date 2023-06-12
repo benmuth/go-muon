@@ -35,7 +35,7 @@ func (d *DictBuilder) AddStr(s string) {
 }
 
 func (d *DictBuilder) Add(x any) {
-	fmt.Printf("val: %+v \t type: %T\n", x, x)
+	// fmt.Printf("val: %+v \t type: %T\n", x, x)
 	switch val := x.(type) {
 	case nil:
 		return
@@ -100,12 +100,11 @@ func uleb128decode(b []byte) int {
 func uleb128read(r *bufio.Reader) int {
 	a := make([]byte, 0)
 	for {
-		// b := make([]byte, 1)
 		b, err := r.ReadByte()
 		if err != nil {
 			panic(err) // TODO: Real error handling
 		}
-		log.Printf("next char: %x", b)
+		// log.Printf("next char: %x", b)
 		a = append(a, b)
 		if (b & 0x80) == 0 {
 			break
@@ -164,59 +163,6 @@ func sleb128read(r *bufio.Reader) *big.Int {
 
 // Array helpers
 
-func readBitsAs(typeCode byte, bits []byte) any {
-	width := getTypeWidth(typeCode)
-	switch typeCode {
-	case 0xB0: // i8
-		bits = bits[:width]
-		return int8(bits[0])
-	case 0xB1: // i16
-		bits = bits[:width]
-		return int16(binary.LittleEndian.Uint16(bits))
-	case 0xB2: // i32
-		bits = bits[:width]
-		return int32(binary.LittleEndian.Uint32(bits))
-	case 0xB3: // i64
-		bits = bits[:width]
-		return int64(binary.LittleEndian.Uint64(bits))
-	case 0xB4: // u8
-		bits = bits[:width]
-		return uint8(bits[0])
-	case 0xB5: // u16
-		bits = bits[:width]
-		return binary.LittleEndian.Uint16(bits)
-	case 0xB6: // u32
-		bits = bits[:width]
-		return binary.LittleEndian.Uint32(bits)
-	case 0xB7: // u64
-		bits = bits[:width]
-		return binary.LittleEndian.Uint64(bits)
-
-	case 0xB8: // f16
-		panic("TypedArray: f16 not supported") //TODO: error handling
-	case 0xB9: // f32
-		bits = bits[:width]
-		return math.Float32frombits(binary.LittleEndian.Uint32(bits))
-	case 0xBA: // f64
-		bits = bits[:width]
-		return math.Float64frombits(binary.LittleEndian.Uint64(bits))
-	default:
-		// err := errors.New(fmt.Sprintf("No array type for %x", t))
-		panic("No array for type")
-	}
-}
-
-func readArrayFromBits(typeCode byte, data []byte) any {
-	width := getTypeWidth(typeCode)
-	ret := make([]any, 0)
-
-	for i := 0; i < len(data); i += width {
-		v := readBitsAs(typeCode, data[i:i+width])
-		ret = append(ret, v)
-	}
-	return ret
-}
-
 func getTypeWidth(typeCode byte) int {
 	width := 0
 	switch typeCode {
@@ -238,6 +184,50 @@ func getTypeWidth(typeCode byte) int {
 		panic("No array for type")
 	}
 	return width
+}
+
+func readBitsAs(typeCode byte, bits []byte) any {
+	width := getTypeWidth(typeCode)
+	bits = bits[:width]
+	switch typeCode {
+	case 0xB0: // i8
+		return int8(bits[0])
+	case 0xB1: // i16
+		return int16(binary.LittleEndian.Uint16(bits))
+	case 0xB2: // i32
+		return int32(binary.LittleEndian.Uint32(bits))
+	case 0xB3: // i64
+		return int64(binary.LittleEndian.Uint64(bits))
+	case 0xB4: // u8
+		return uint8(bits[0])
+	case 0xB5: // u16
+		return binary.LittleEndian.Uint16(bits)
+	case 0xB6: // u32
+		return binary.LittleEndian.Uint32(bits)
+	case 0xB7: // u64
+		return binary.LittleEndian.Uint64(bits)
+
+	case 0xB8: // f16
+		panic("TypedArray: f16 not supported") //TODO: error handling
+	case 0xB9: // f32
+		return math.Float32frombits(binary.LittleEndian.Uint32(bits))
+	case 0xBA: // f64
+		return math.Float64frombits(binary.LittleEndian.Uint64(bits))
+	default:
+		// err := errors.New(fmt.Sprintf("No array type for %x", t))
+		panic("No array for type")
+	}
+}
+
+func readArrayFromBits(typeCode byte, data []byte) any {
+	width := getTypeWidth(typeCode)
+	ret := make([]any, 0)
+
+	for i := 0; i < len(data); i += width {
+		v := readBitsAs(typeCode, data[i:i+width])
+		ret = append(ret, v)
+	}
+	return ret
 }
 
 func getTypedArrayMarker(val any) byte {
@@ -561,7 +551,7 @@ func (mr *muReader) readString() (res string) {
 	if err != nil {
 		panic(err) // TODO: err handling
 	}
-	log.Printf("next char: %x", c)
+	// log.Printf("next char: %x", c)
 	switch c {
 	case 0x81:
 		n := uleb128read(mr.inp)
@@ -583,7 +573,7 @@ func (mr *muReader) readString() (res string) {
 			if err != nil {
 				panic(err)
 			}
-			log.Printf("next char: %x", c)
+			// log.Printf("next char: %x", c)
 		}
 		res = string(buff)
 		return
@@ -604,11 +594,14 @@ func (mr *muReader) readSpecial() any {
 	case 0xAC:
 		return nil
 	case 0xAD:
-		return math.NaN()
+		// return math.NaN() // NOTE: NaN not valid JSON! replacing with nil
+		return nil
 	case 0xAE:
-		return math.Inf(-1)
+		// return math.Inf(-1) // NOTE: Invalid JSON! replacing with nil
+		return nil
 	case 0xAF:
-		return math.Inf(1)
+		// return math.Inf(1) // NOTE: Invalid JSON: replacing with nil
+		return nil
 	case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9:
 		return t - 0xA0
 	default:
@@ -759,7 +752,7 @@ func (mr *muReader) readTypedArray() any {
 				}
 
 				f16 := float16.Frombits(binary.LittleEndian.Uint16(data))
-				fmt.Printf("%v\n", f16)
+				// fmt.Printf("%v\n", f16)
 				res = append(res, f16)
 			}
 			if !chunked {
@@ -778,7 +771,7 @@ func (mr *muReader) readTypedArray() any {
 			if err != nil {
 				panic(err) // TODO: err handling
 			}
-			fmt.Printf("%x\n", bits)
+			// fmt.Printf("%x\n", bits)
 			// TODO: handle big endian
 			chunk := readArrayFromBits(t, bits)
 			if !chunked {
@@ -842,7 +835,7 @@ func (mr *muReader) readDict() map[string]any {
 		}
 		val := mr.ReadObject()
 		res[key] = val
-		log.Printf("key: %s  val: %v", key, val)
+		// log.Printf("key: %s  val: %v", key, val)
 		next, err = mr.inp.Peek(1)
 		if err != nil {
 			panic(err) // TODO: err handling

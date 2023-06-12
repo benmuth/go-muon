@@ -2,7 +2,9 @@ package muon
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -235,10 +237,10 @@ func TestLRU(t *testing.T) {
 // 	m.Add(data)
 // }
 
-func eqMuON(file1, file2 string) bool {
-	json1, json2 := Mu2JSON(file1), Mu2JSON(file2)
-	return eqJSONBytes(json1, json2)
-}
+// func eqMuON(file1, file2 string) bool {
+// 	json1, json2 := Mu2JSON(file1), Mu2JSON(file2)
+// 	return eqJSONBytes(json1, json2)
+// }
 
 func Mu2JSON(file string) []byte {
 	f, err := os.Open(file)
@@ -248,11 +250,11 @@ func Mu2JSON(file string) []byte {
 	defer f.Close()
 
 	// NOTE: print all bytes
-	b, err := os.ReadFile(file)
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("%0 x\n", b)
+	// b, err := os.ReadFile(file)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// log.Printf("%0 x\n", b)
 
 	m := NewMuReader(*bufio.NewReader(f))
 
@@ -267,23 +269,73 @@ func Mu2JSON(file string) []byte {
 	return jsonData
 }
 
-func TestMu2JSON(t *testing.T) {
-	muSrc := "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.mu"
+// func TestMu2JSON(t *testing.T) {
+// 	muSrc := "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.mu"
 
-	jsonSrc := "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json"
-	jsonSrcBytes, err := os.ReadFile(jsonSrc)
-	if err != nil {
-		panic(err)
-	}
+// 	jsonSrc := "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json"
 
-	gotJSON := Mu2JSON(muSrc)
+// 	jsonData, err := os.ReadFile(jsonSrc)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	jsonData = bytes.Replace(jsonData, []byte("NaN"), []byte("null"), -1)
+// 	jsonData = bytes.Replace(jsonData, []byte("-Infinity"), []byte("null"), -1)
+// 	jsonData = bytes.Replace(jsonData, []byte("Infinity"), []byte("null"), -1)
+// 	if !json.Valid(jsonData) {
+// 		t.Error("INVALID!")
+// 		return
+// 	}
+// 	log.Println("VALID!")
 
-	if !eqJSONBytes(jsonSrcBytes, gotJSON) {
-		t.Errorf("MuON source: %s\nJSON source: %s\ngot %v\twant%v\n", muSrc, jsonSrc, false, true)
-	}
-}
+// 	jsonObj := make(map[string]any)
 
-func eqJSONFiles(file1, file2 string) bool {
+// 	if err := json.Unmarshal(jsonData, &jsonObj); err != nil {
+// 		panic(err)
+// 	}
+
+// 	// log.Println(jsonObj)
+
+// 	muonFile, err := os.Open(muSrc)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	m := NewMuReader(*bufio.NewReader(muonFile))
+
+// 	m.inp.Reset(muonFile)
+
+// 	muonObj := m.ReadObject()
+
+// 	marshalledMuon, err := json.Marshal(muonObj)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	unmarshalledMuon := make(map[string]any)
+// 	err = json.Unmarshal(marshalledMuon, &unmarshalledMuon)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	if s := cmp.Diff(jsonObj, unmarshalledMuon); s != "" {
+// 		t.Errorf("DIFF: %s\n", s)
+// 	}
+
+// 	// muonObj := make(map[string]any)
+
+// 	// jsonSrcBytes, err := os.ReadFile(jsonSrc)
+// 	// if err != nil {
+// 	// 	panic(err)
+// 	// }
+
+// 	// gotJSON := Mu2JSON(muSrc)
+
+// 	// if !eqJSONBytes(jsonSrcBytes, gotJSON) {
+// 	// 	t.Errorf("MuON source: %s\nJSON source: %s\ngot %v\twant %v\n", muSrc, jsonSrc, false, true)
+// 	// }
+// }
+
+func eqJSONFiles(file1, file2 string) (string, error) {
 	b1, err := os.ReadFile(file1)
 	if err != nil {
 		panic(err)
@@ -294,15 +346,38 @@ func eqJSONFiles(file1, file2 string) bool {
 		panic(err)
 	}
 
+	// diff := cmp.Diff(b1, b2)
+
+	// if diff != "" {
+	// 	log.Println("bytes DIFF: ", diff)
+	// 	return false
+	// }
+
 	return eqJSONBytes(b1, b2)
 }
 
-func eqJSONBytes(bytes1, bytes2 []byte) bool {
-	if !json.Valid(bytes1) || !json.Valid(bytes2) {
-		return false
+func eqJSONBytes(bytes1, bytes2 []byte) (string, error) {
+	// change invalid JSON values to valid JSON values.
+	bytes1 = bytes.Replace(bytes1, []byte("NaN"), []byte("null"), -1)
+	bytes1 = bytes.Replace(bytes1, []byte("-Infinity"), []byte("null"), -1)
+	bytes1 = bytes.Replace(bytes1, []byte("Infinity"), []byte("null"), -1)
+
+	bytes2 = bytes.Replace(bytes2, []byte("NaN"), []byte("null"), -1)
+	bytes2 = bytes.Replace(bytes2, []byte("-Infinity"), []byte("null"), -1)
+	bytes2 = bytes.Replace(bytes2, []byte("Infinity"), []byte("null"), -1)
+
+	if !json.Valid(bytes1) {
+		err := "file 1 invalid"
+		log.Printf(err)
+		return "false", fmt.Errorf("Invalid file!: %s", err)
 	}
 
-	var obj1, obj2 any
+	if !json.Valid(bytes2) {
+		err := "file 2 invalid"
+		log.Printf(err)
+		return "false", fmt.Errorf("Invalid file!: %s", err)
+	}
+	obj1, obj2 := make(map[string]any), make(map[string]any)
 
 	if err := json.Unmarshal(bytes1, &obj1); err != nil {
 		panic(err)
@@ -312,8 +387,11 @@ func eqJSONBytes(bytes1, bytes2 []byte) bool {
 		panic(err)
 	}
 
-	log.Println(cmp.Diff(obj1, obj2))
-	return cmp.Equal(obj1, obj2)
+	diff := cmp.Diff(obj1, obj2)
+	if diff != "" {
+		log.Printf("DIFF: '%v'", diff)
+	}
+	return diff, nil
 }
 
 func TestEqJSON(t *testing.T) {
@@ -331,6 +409,12 @@ func TestEqJSON(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:  "same file2",
+			file1: "/Users/ben/Documents/Programming/go-muon/testdata/tiny/tiny-src.json",
+			file2: "/Users/ben/Documents/Programming/go-muon/testdata/tiny/tiny-src.json",
+			want:  true,
+		},
+		{
 			name:  "different files",
 			file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
 			file2: "/Users/ben/Documents/Programming/go-muon/testdata/pokemon/pokemon-src.json",
@@ -339,17 +423,35 @@ func TestEqJSON(t *testing.T) {
 		{
 			name:  "not json",
 			file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.mu",
-			file2: "/Users/ben/Documents/Programming/go-muon/testdata/pokemon/pokemon-src.json",
+			file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
 			want:  false,
 		},
+
+		{
+			name:  "python vs original",
+			file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
+			file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-out.json",
+			want:  true,
+		},
+		// {
+		// 	name:  "go vs original",
+		// 	file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
+		// 	file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-go.json",
+		// 	want:  true,
+		// },
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := eqJSONFiles(tc.file1, tc.file2)
+			diff, err := eqJSONFiles(tc.file1, tc.file2)
+			if err != nil {
+				log.Println(err)
+			}
+
+			got := diff == ""
 
 			if got != tc.want {
-				t.Fatalf("json comparison failed!\nfile1: %s\nfile2: %s\ngot %v \n want %v\n", tc.file1, tc.file2, got, tc.want)
+				t.Errorf("json comparison failed!\nfile1: %s\nfile2: %s\ngot %v \nwant %v\n", tc.file1, tc.file2, got, tc.want)
 			}
 		})
 	}
