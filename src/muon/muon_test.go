@@ -184,7 +184,7 @@ func TestLRU(t *testing.T) {
 // 	}
 // 	fmt.Printf("json: %s\n", b)
 // 	x := &jsonData{}
-// 	json.Unmarshal(b, x)
+//  json.Unmarshal(b, x)
 // 	// fmt.Println(x)
 // 	for k, v := range *x {
 // 		fmt.Printf("key: %s, val (%T): %+v\n", k, v, v)
@@ -312,6 +312,7 @@ func eqJSONBytes(bytes1, bytes2 []byte) bool {
 		panic(err)
 	}
 
+	log.Println(cmp.Diff(obj1, obj2))
 	return cmp.Equal(obj1, obj2)
 }
 

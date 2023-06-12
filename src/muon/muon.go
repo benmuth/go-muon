@@ -164,61 +164,81 @@ func sleb128read(r *bufio.Reader) *big.Int {
 
 // Array helpers
 
-// NOTE: detect_array_type is unnecessary, use a type switch in the Writer.add function
-// def detect_array_type(arr):
-//     if len(arr) < 2:
-//         return None
+func readBitsAs(typeCode byte, bits []byte) any {
+	width := getTypeWidth(typeCode)
+	switch typeCode {
+	case 0xB0: // i8
+		bits = bits[:width]
+		return int8(bits[0])
+	case 0xB1: // i16
+		bits = bits[:width]
+		return int16(binary.LittleEndian.Uint16(bits))
+	case 0xB2: // i32
+		bits = bits[:width]
+		return int32(binary.LittleEndian.Uint32(bits))
+	case 0xB3: // i64
+		bits = bits[:width]
+		return int64(binary.LittleEndian.Uint64(bits))
+	case 0xB4: // u8
+		bits = bits[:width]
+		return uint8(bits[0])
+	case 0xB5: // u16
+		bits = bits[:width]
+		return binary.LittleEndian.Uint16(bits)
+	case 0xB6: // u32
+		bits = bits[:width]
+		return binary.LittleEndian.Uint32(bits)
+	case 0xB7: // u64
+		bits = bits[:width]
+		return binary.LittleEndian.Uint64(bits)
 
-//     res = None
-//     if isinstance(arr[0], int):
-//         res = 'int'
-//     elif isinstance(arr[0], float):
-//         res = 'float'
+	case 0xB8: // f16
+		panic("TypedArray: f16 not supported") //TODO: error handling
+	case 0xB9: // f32
+		bits = bits[:width]
+		return math.Float32frombits(binary.LittleEndian.Uint32(bits))
+	case 0xBA: // f64
+		bits = bits[:width]
+		return math.Float64frombits(binary.LittleEndian.Uint64(bits))
+	default:
+		// err := errors.New(fmt.Sprintf("No array type for %x", t))
+		panic("No array for type")
+	}
+}
 
-//     for val in arr:
-//         if isinstance(val, bool):
-//             return None
-//         elif isinstance(val, int):
-//             pass
-//         elif isinstance(val, float):
-//             if res == 'int':
-//                 res == 'float'  # extend to float
-//         else:
-//             return None
-//     return res
+func readArrayFromBits(typeCode byte, data []byte) any {
+	width := getTypeWidth(typeCode)
+	ret := make([]any, 0)
 
-// NOTE: get_array_type_code is used to create an array of a certain type.
-// func getArrayTypeCode(t byte) rune {
-// 	switch t {
-// 	case 0xB0:
-// 		return 'b'
-// 	case 0xB1:
-// 		return 'h'
-// 	case 0xB2:
-// 		return 'l'
-// 	case 0xB3:
-// 		return 'q'
+	for i := 0; i < len(data); i += width {
+		v := readBitsAs(typeCode, data[i:i+width])
+		ret = append(ret, v)
+	}
+	return ret
+}
 
-// 	case 0xB4:
-// 		return 'B'
-// 	case 0xB5:
-// 		return 'H'
-// 	case 0xB6:
-// 		return 'L'
-// 	case 0xB7:
-// 		return 'Q'
-
-// 	case 0xB8:
-// 		panic("TypedArray: f16 not supported") //TODO: error handling
-// 	case 0xB9:
-// 		return 'f'
-// 	case 0xBA:
-// 		return 'd'
-// 	default:
-// 		err := errors.New(fmt.Sprintf("No array type for %x", t))
-// 		panic(err)
-// 	}
-// }
+func getTypeWidth(typeCode byte) int {
+	width := 0
+	switch typeCode {
+	case 0xB0, 0xB4: // i8, u8
+		width = 1
+	case 0xB1, 0xB5: // i16, u16
+		width = 2
+	case 0xB9: // f32, encoded as 4 bytes!
+		width = 4
+	case 0xB2, 0xB6: //i32, u32
+		// HACK: it seems like 32 bits are encoded with 8 bytes in Python implementation?
+		// width = 4 // this doesn't work!
+		width = 8
+	case 0xB3, 0xB7, 0xBA: // i64, u64, f64
+		width = 8
+	case 0xB8:
+		panic("TypedArray: f16 not supported") //TODO: error handling
+	default:
+		panic("No array for type")
+	}
+	return width
+}
 
 func getTypedArrayMarker(val any) byte {
 	switch t := val.(type) {
@@ -565,11 +585,6 @@ func (mr *muReader) readString() (res string) {
 			}
 			log.Printf("next char: %x", c)
 		}
-		// res, err = mr.inp.ReadString(0x00)
-		// if err != nil {
-		// 	panic(err) // TODO: err handling
-		// }
-		// res = res[:len(res)-1]
 		res = string(buff)
 		return
 	}
@@ -694,7 +709,7 @@ func (mr *muReader) readTypedValue() any {
 	}
 }
 
-func (mr *muReader) readTypedArray() []any {
+func (mr *muReader) readTypedArray() any {
 	data, err := mr.inp.ReadByte()
 	if err != nil {
 		panic(err) // TODO: err handling
@@ -711,11 +726,8 @@ func (mr *muReader) readTypedArray() []any {
 	}
 
 	var res []any
-	// var chunk []any
 	switch t {
 	case 0xBB:
-		// res := make([]byte, 0)
-		res = make([]any, 0)
 		for {
 			n := uleb128read(mr.inp)
 			if n == 0 {
@@ -732,9 +744,7 @@ func (mr *muReader) readTypedArray() []any {
 		}
 	case 0xB8:
 		// TODO: support f16
-		// panic("f16 not supported")
 		log.Print("Handling f16!")
-		res = make([]any, 0)
 		for {
 			n := uleb128read(mr.inp)
 			if n == 0 {
@@ -747,37 +757,36 @@ func (mr *muReader) readTypedArray() []any {
 				if err != nil {
 					panic(err)
 				}
-				// data = append(data, []byte{0, 0}...)
-				data = append([]byte{0, 0}, data...)
-				f32 := math.Float32frombits(binary.LittleEndian.Uint32(data))
-				res = append(res, float16.Fromfloat32(f32))
+
+				f16 := float16.Frombits(binary.LittleEndian.Uint16(data))
+				fmt.Printf("%v\n", f16)
+				res = append(res, f16)
 			}
 			if !chunked {
 				return res
 			}
 		}
 	default:
-		res := make([]byte, 0)
 		for {
 			n := uleb128read(mr.inp)
 			if n == 0 {
 				break
 			}
 
-			chunk := make([]byte, n)
-			_, err := mr.inp.Read(chunk)
+			bits := make([]byte, n*getTypeWidth(t))
+			_, err := mr.inp.Read(bits)
 			if err != nil {
 				panic(err) // TODO: err handling
 			}
-			if !chunked {
-				ret := make([]any, n)
-				for i, v := range chunk {
-					ret[i] = v
-				}
-				return ret
-			}
+			fmt.Printf("%x\n", bits)
 			// TODO: handle big endian
-			for _, v := range chunk {
+			chunk := readArrayFromBits(t, bits)
+			if !chunked {
+				return chunk
+			}
+
+			sliced := chunk.([]any)
+			for _, v := range sliced {
 				res = append(res, v)
 			}
 		}
@@ -833,7 +842,7 @@ func (mr *muReader) readDict() map[string]any {
 		}
 		val := mr.ReadObject()
 		res[key] = val
-		log.Printf("key: %-5s \t val: %5v", key, val)
+		log.Printf("key: %s  val: %v", key, val)
 		next, err = mr.inp.Peek(1)
 		if err != nil {
 			panic(err) // TODO: err handling
@@ -905,7 +914,6 @@ func (mr *muReader) ReadObject() any {
 				return res
 			}
 		case nxt == 0x8F:
-			// assert mr.inp.read(4) == MuonMagic
 			data := make([]byte, 4)
 			_, err := mr.inp.Read(data)
 			if err != nil {
