@@ -335,7 +335,7 @@ func Mu2JSON(file string) []byte {
 // 	// }
 // }
 
-func eqJSONFiles(file1, file2 string) (string, error) {
+func eqJSONFiles(file1, file2 string) (bool, string, error) {
 	b1, err := os.ReadFile(file1)
 	if err != nil {
 		panic(err)
@@ -346,36 +346,30 @@ func eqJSONFiles(file1, file2 string) (string, error) {
 		panic(err)
 	}
 
-	// diff := cmp.Diff(b1, b2)
-
-	// if diff != "" {
-	// 	log.Println("bytes DIFF: ", diff)
-	// 	return false
-	// }
-
 	return eqJSONBytes(b1, b2)
 }
 
-func eqJSONBytes(bytes1, bytes2 []byte) (string, error) {
-	// change invalid JSON values to valid JSON values.
-	bytes1 = bytes.Replace(bytes1, []byte("NaN"), []byte("null"), -1)
-	bytes1 = bytes.Replace(bytes1, []byte("-Infinity"), []byte("null"), -1)
-	bytes1 = bytes.Replace(bytes1, []byte("Infinity"), []byte("null"), -1)
+func makeValidJSON(b []byte) []byte {
+	b = bytes.Replace(b, []byte("NaN"), []byte("null"), -1)
+	b = bytes.Replace(b, []byte("-Infinity"), []byte("null"), -1)
+	b = bytes.Replace(b, []byte("Infinity"), []byte("null"), -1)
+	return b
+}
 
-	bytes2 = bytes.Replace(bytes2, []byte("NaN"), []byte("null"), -1)
-	bytes2 = bytes.Replace(bytes2, []byte("-Infinity"), []byte("null"), -1)
-	bytes2 = bytes.Replace(bytes2, []byte("Infinity"), []byte("null"), -1)
+func eqJSONBytes(bytes1, bytes2 []byte) (bool, string, error) {
+	// change invalid JSON values to valid JSON values.
+	bytes1, bytes2 = makeValidJSON(bytes1), makeValidJSON(bytes2)
 
 	if !json.Valid(bytes1) {
 		err := "file 1 invalid"
 		log.Printf(err)
-		return "false", fmt.Errorf("Invalid file!: %s", err)
+		return false, "", fmt.Errorf("Invalid file!: %s", err)
 	}
 
 	if !json.Valid(bytes2) {
 		err := "file 2 invalid"
 		log.Printf(err)
-		return "false", fmt.Errorf("Invalid file!: %s", err)
+		return false, "", fmt.Errorf("Invalid file!: %s", err)
 	}
 	obj1, obj2 := make(map[string]any), make(map[string]any)
 
@@ -389,9 +383,9 @@ func eqJSONBytes(bytes1, bytes2 []byte) (string, error) {
 
 	diff := cmp.Diff(obj1, obj2)
 	if diff != "" {
-		log.Printf("DIFF: '%v'", diff)
+		return false, diff, nil
 	}
-	return diff, nil
+	return true, "", nil
 }
 
 func TestEqJSON(t *testing.T) {
@@ -409,15 +403,9 @@ func TestEqJSON(t *testing.T) {
 			want:  true,
 		},
 		{
-			name:  "same file2",
-			file1: "/Users/ben/Documents/Programming/go-muon/testdata/tiny/tiny-src.json",
-			file2: "/Users/ben/Documents/Programming/go-muon/testdata/tiny/tiny-src.json",
-			want:  true,
-		},
-		{
 			name:  "different files",
 			file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
-			file2: "/Users/ben/Documents/Programming/go-muon/testdata/pokemon/pokemon-src.json",
+			file2: "/Users/ben/Documents/Programming/go-muon/testdata/tiny/tiny-src.json",
 			want:  false,
 		},
 		{
@@ -433,25 +421,24 @@ func TestEqJSON(t *testing.T) {
 			file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-out.json",
 			want:  true,
 		},
-		// {
-		// 	name:  "go vs original",
-		// 	file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
-		// 	file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-go.json",
-		// 	want:  true,
-		// },
+		{
+			name:  "go vs original",
+			file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
+			file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-go.json",
+			want:  true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			diff, err := eqJSONFiles(tc.file1, tc.file2)
+			got, diff, err := eqJSONFiles(tc.file1, tc.file2)
 			if err != nil {
 				log.Println(err)
 			}
 
-			got := diff == ""
-
 			if got != tc.want {
 				t.Errorf("json comparison failed!\nfile1: %s\nfile2: %s\ngot %v \nwant %v\n", tc.file1, tc.file2, got, tc.want)
+				log.Println("DIFF", diff)
 			}
 		})
 	}

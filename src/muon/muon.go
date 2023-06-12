@@ -854,7 +854,7 @@ func (mr *muReader) ReadObject() any {
 	if err == nil {
 		nxt = data[0]
 	} else if err == io.EOF {
-		fmt.Printf("NO PEEK.%s\n", err)
+		fmt.Printf("NO PEEK: %s\n", err)
 	} else if err != nil {
 		panic(err) // TODO: err handling
 	}
