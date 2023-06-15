@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -677,7 +678,7 @@ func (mr *muReader) readTypedValue() any {
 		if err != nil {
 			panic(err)
 		}
-		f16 := float16.Frombits(binary.LittleEndian.Uint16(data))
+		f16 := myF16(float16.Frombits(binary.LittleEndian.Uint16(data)))
 		// log.Printf("float 16:%s", f16.String())
 		return f16
 	case 0xB9:
@@ -751,7 +752,7 @@ func (mr *muReader) readTypedArray() any {
 					panic(err)
 				}
 
-				f16 := float16.Frombits(binary.LittleEndian.Uint16(data))
+				f16 := myF16(float16.Frombits(binary.LittleEndian.Uint16(data)))
 				// fmt.Printf("%v\n", f16)
 				res = append(res, f16)
 			}
@@ -960,3 +961,14 @@ func (mr *muReader) ReadObject() any {
 // 	log.Printf("%v bytes written to %s", n, outf.Name())
 
 // }
+
+type myF16 float16.Float16
+
+func (f16 myF16) MarshalJSON() ([]byte, error) {
+	realF16 := float16.Float16(f16)
+	f16JSON, err := json.Marshal(realF16.Float32())
+	if err != nil {
+		panic(err)
+	}
+	return f16JSON, nil
+}
