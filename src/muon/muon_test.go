@@ -242,98 +242,90 @@ func TestLRU(t *testing.T) {
 // 	return eqJSONBytes(json1, json2)
 // }
 
-func Mu2JSON(file string) []byte {
+// func Mu2JSONbytes(jsonObj map[string]interface) []byte {
+
+// }
+
+func mu2Obj(file string) any {
 	f, err := os.Open(file)
 	if err != nil {
 		panic(err) // TODO: err handling
 	}
 	defer f.Close()
 
-	// NOTE: print all bytes
-	// b, err := os.ReadFile(file)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// log.Printf("%0 x\n", b)
-
 	m := NewMuReader(*bufio.NewReader(f))
 
 	m.inp.Reset(f)
 
-	data := m.ReadObject()
+	return m.ReadObject()
+}
 
-	jsonData, err := json.Marshal(data)
+func Mu2JSON(file string) []byte {
+	obj := mu2Obj(file)
+	jsonData, err := json.Marshal(obj)
 	if err != nil {
 		panic(err) // TODO: err handling
 	}
 	return jsonData
 }
 
-// func TestMu2JSON(t *testing.T) {
-// 	muSrc := "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.mu"
+func TestMu2JSON(t *testing.T) {
+	tests := []struct {
+		name         string
+		muSrcFile    string
+		jsonWantFile string
+	}{
+		{
+			name:         "sample MuON",
+			muSrcFile:    "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.mu",
+			jsonWantFile: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
+		},
+	}
 
-// 	jsonSrc := "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json"
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			wantJSONObj := cleanUnmarshalFile(tc.jsonWantFile)
 
-// 	jsonData, err := os.ReadFile(jsonSrc)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	jsonData = bytes.Replace(jsonData, []byte("NaN"), []byte("null"), -1)
-// 	jsonData = bytes.Replace(jsonData, []byte("-Infinity"), []byte("null"), -1)
-// 	jsonData = bytes.Replace(jsonData, []byte("Infinity"), []byte("null"), -1)
-// 	if !json.Valid(jsonData) {
-// 		t.Error("INVALID!")
-// 		return
-// 	}
-// 	log.Println("VALID!")
+			// NOTE: should we marshal and unmarshal the json again for a better comparison?
+			// b, err := json.Marshal(wantJSONObj)
+			// if err != nil {
+			// 	panic(err)
+			// }
+			// wantJSONObj = cleanUnmarshalBytes(b)
 
-// 	jsonObj := make(map[string]any)
+			gotJSONObj := cleanUnmarshalBytes(Mu2JSON(tc.muSrcFile))
 
-// 	if err := json.Unmarshal(jsonData, &jsonObj); err != nil {
-// 		panic(err)
-// 	}
+			if diff := cmp.Diff(wantJSONObj, gotJSONObj); diff != "" {
+				t.Errorf("want != got. DIFF: \n%s\n", diff)
+			}
 
-// 	// log.Println(jsonObj)
+		})
+	}
+}
 
-// 	muonFile, err := os.Open(muSrc)
-// 	if err != nil {
-// 		panic(err)
-// 	}
+func cleanUnmarshalFile(jsonFile string) map[string]any {
+	jsonData, err := os.ReadFile(jsonFile)
+	if err != nil {
+		panic(err)
+	}
 
-// 	m := NewMuReader(*bufio.NewReader(muonFile))
+	return cleanUnmarshalBytes(jsonData)
+}
 
-// 	m.inp.Reset(muonFile)
+func cleanUnmarshalBytes(jsonData []byte) map[string]any {
+	validJSONData := makeValidJSON(jsonData)
+	if !json.Valid(validJSONData) {
+		panic("Invalid JSON bytes!")
+	}
 
-// 	muonObj := m.ReadObject()
+	jsonObj := make(map[string]any)
 
-// 	marshalledMuon, err := json.Marshal(muonObj)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	unmarshalledMuon := make(map[string]any)
-// 	err = json.Unmarshal(marshalledMuon, &unmarshalledMuon)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	if s := cmp.Diff(jsonObj, unmarshalledMuon); s != "" {
-// 		t.Errorf("DIFF: %s\n", s)
-// 	}
-
-// 	// muonObj := make(map[string]any)
-
-// 	// jsonSrcBytes, err := os.ReadFile(jsonSrc)
-// 	// if err != nil {
-// 	// 	panic(err)
-// 	// }
-
-// 	// gotJSON := Mu2JSON(muSrc)
-
-// 	// if !eqJSONBytes(jsonSrcBytes, gotJSON) {
-// 	// 	t.Errorf("MuON source: %s\nJSON source: %s\ngot %v\twant %v\n", muSrc, jsonSrc, false, true)
-// 	// }
-// }
+	if err := json.Unmarshal(validJSONData, &jsonObj); err != nil {
+		log.Printf("JSON unmarshal error!")
+		panic(err)
+	}
+	return jsonObj
+}
 
 func eqJSONFiles(file1, file2 string) (bool, string, error) {
 	b1, err := os.ReadFile(file1)
@@ -421,12 +413,12 @@ func TestEqJSON(t *testing.T) {
 			file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-out.json",
 			want:  true,
 		},
-		{
-			name:  "go vs original",
-			file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
-			file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-go.json",
-			want:  true,
-		},
+		// {
+		// 	name:  "go vs original",
+		// 	file1: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-src.json",
+		// 	file2: "/Users/ben/Documents/Programming/go-muon/testdata/sample/sample-go.json",
+		// 	want:  true,
+		// },
 	}
 
 	for _, tc := range tests {

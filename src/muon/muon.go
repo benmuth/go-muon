@@ -869,13 +869,13 @@ func (mr *muReader) ReadObject() any {
 		}
 		nxt = data[0]
 	}
-	var ret []any
+
 	if nxt > 0x82 && nxt <= 0xC1 {
 		switch {
 		case nxt >= 0xA0 && nxt <= 0xAF:
-			return append(ret, mr.readSpecial())
+			return mr.readSpecial()
 		case nxt >= 0xB0 && nxt <= 0xBB:
-			return append(ret, mr.readTypedValue())
+			return mr.readTypedValue()
 		case nxt == 0x84 || nxt == 0x85:
 			return mr.readTypedArray()
 		case nxt == 0x8A:
@@ -930,3 +930,33 @@ func (mr *muReader) ReadObject() any {
 // func dumps(data)
 
 // func loads(data)
+
+// INTEGRATION
+
+// func mu2json(muon io.Reader) any {
+// 	m := NewMuReader(*bufio.NewReader(muon))
+// 	data := m.ReadObject()
+
+// 	jsonData, err := json.Marshal(data)
+// 	if err != nil {
+// 		panic(err) // TODO: err handling
+// 	}
+
+// 	fmt.Printf("OUTPUT\n\n %s\n", jsonData)
+
+// 	dir, name := filepath.Split(inp)
+// 	newName := strings.Split(name, "-")[0] + "-go.json"
+// 	newPath := filepath.Join(dir, newName)
+
+// 	outf, err := os.Create(newPath)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	defer outf.Close()
+// 	n, err := outf.Write(jsonData)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	log.Printf("%v bytes written to %s", n, outf.Name())
+
+// }
