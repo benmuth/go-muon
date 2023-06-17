@@ -1,1 +1,1 @@
-A port of [MuON](https://github.com/vshymanskyy/muon) to Go. This project is for purely educational purposes.
+A port of [MuON](https://github.com/vshymanskyy/muon) to Go. This is mostly for educational purposes and isn't ready for real-world use.
