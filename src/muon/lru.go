@@ -38,7 +38,7 @@ func (lru *LRU) truncate(n int) {
 }
 
 func (lru *LRU) Get(idx int) any {
-	if idx < 0 {
+	if idx <= 0 {
 		lastIdx := len(lru.deque) - 1
 		return lru.deque[lastIdx+idx]
 	}

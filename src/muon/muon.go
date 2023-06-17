@@ -554,11 +554,11 @@ func (mr *muReader) readString() (res string) {
 	}
 	// log.Printf("next char: %x", c)
 	switch c {
-	case 0x81:
+	case 0x81: // string in LRU
 		n := uleb128read(mr.inp)
 		res = mr.lru.Get(-n).(string)
 		return
-	case 0x82:
+	case 0x82: // string not in LRU?
 		n := uleb128read(mr.inp)
 		b := make([]byte, n)
 		_, err := mr.inp.Read(b)
@@ -566,7 +566,7 @@ func (mr *muReader) readString() (res string) {
 			panic(err) // TODO: err handling
 		}
 		return string(b)
-	default:
+	default: // null terminated UTF-8 string
 		buff := make([]byte, 0)
 		for c != 0x00 {
 			buff = append(buff, c)
@@ -695,7 +695,7 @@ func (mr *muReader) readTypedValue() any {
 			panic(err) // TODO: err handling
 		}
 		return math.Float64frombits(binary.LittleEndian.Uint64(data))
-	case 0xBB:
+	case 0xBB: // big ints; leb128
 		// TODO: string
 		return sleb128read(mr.inp).String()
 	default:
